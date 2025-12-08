@@ -49,7 +49,7 @@ df['Date'] = pd.to_datetime(df['Year'].astype(int), format='%Y') + \
              pd.to_timedelta(df['Day'].astype(int) - 1, unit='D')
 
 # Calculate the radiator temperature based on the given formula
-def calc_T_rad(T_out_l:list, T_in: float):
+def calc_T_rad(T_out_l:list, T_in: float = 21.0):
     T_rad_l = []
     for T_out in T_out_l:
         if T_out < 0.0:
@@ -70,9 +70,9 @@ def calc_heatloss_kWh_day(T_out_l:list, T_in: float = 21.0):
     heatloss_l = []
     for T_out in T_out_l:
         if T_out < T_in:
-            Qdot_MJ_per_h = 2.0*(T_in - T_out)      # MJ/h
-            Qday_MJ = Qdot_MJ_per_h*24.0           # MJ/day
-            Qday_kWh = Qday_MJ/3.6                # kWh/day  (1 kWh = 3.6 MJ)
+            Qdot_MJ_per_h = 2.0*(T_in - T_out)      
+            Qday_MJ = Qdot_MJ_per_h*24.0           
+            Qday_kWh = Qday_MJ/3.6                
             heatloss_l.append(Qday_kWh)
         else:
             heatloss_l.append(0.0)
@@ -173,3 +173,62 @@ print(avg_el_per_year)
 yearly_outfile = base_dir / "q2_yearly_electricity.csv"
 yearly_el.to_csv(yearly_outfile, header=['Electricity_kWh_year'])
 print(f"Yearly electricity summary saved to {yearly_outfile}")
+
+
+# Question 3) Energy effeciency if  lowered indoor temperature to 19 °C when outside temperature is below 0 °C
+
+def calc_T_rad_v2(T_out_l:list, T_in: float = 21.0):
+    T_rad_l = []
+    for T_out in T_out_l:
+        if T_out < 0.0:
+            T_in_day = 19.0
+            T_rad_l.append(T_in_day*(1+0.043*T_in_day+0.035*abs(T_out)))
+        elif 0.0 <= T_out < T_in:
+            T_rad_l.append(T_in*(1+0.043*(T_in-T_out)))
+        else:
+            T_rad_l.append(0.0)  # No radiator needed for T_out >= T_in
+    return [round(temp, 1) for temp in T_rad_l]
+
+def calc_heatloss_kWh_day_v2(T_out_l:list, T_in: float = 21.0):
+    heatloss_l = []
+    for T_out in T_out_l:
+        if T_out < 0.0:
+            T_in_day = 19.0
+        else:
+            T_in_day = T_in
+            
+        if T_out < T_in_day:
+            Qdot_MJ_per_h = 2.0*(T_in_day - T_out)   # MJ/h
+            Qday_MJ = Qdot_MJ_per_h*24.0            # MJ/day
+            Qday_kWh = Qday_MJ/3.6                 # kWh/day
+            heatloss_l.append(Qday_kWh)
+        else:
+            heatloss_l.append(0.0)
+
+    return heatloss_l
+
+# 3a) New radiator temperature with variable indoor setpoint
+df['Radiator_Temperature_v2'] = calc_T_rad_v2(df['Temperature'])  # type: ignore
+
+# 3b) New heatloss with variable indoor setpoint
+df['Heatloss_kWh_day_v2'] = calc_heatloss_kWh_day_v2(df['Temperature'])  # type: ignore
+
+# 3c) New COP (reuse existing function)
+df['COP_v2'] = calc_COP(df['Radiator_Temperature_v2'])  # type: ignore
+
+# 3d) New electricity per day (reuse existing function)
+df['Pump_Electricity_kWh_day_v2'] = calc_pump_electricity_kWh_day(
+    df['Heatloss_kWh_day_v2'], df['COP_v2']  # type: ignore
+)
+
+# 3e) Total savings over full period
+total_el_original = df['Pump_Electricity_kWh_day'].sum()
+total_el_v2 = df['Pump_Electricity_kWh_day_v2'].sum()
+total_saved = total_el_original - total_el_v2
+
+print("\nTotal electricity saved 2008 - 2017 by using 19C indoors when T_out < 0C (kWh):")
+print(total_saved)
+
+# Save updated CSV
+df.to_csv(export_filename, index=False)
+print("Updated data with Question 3 results saved to CSV")
