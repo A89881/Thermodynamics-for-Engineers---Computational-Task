@@ -1,20 +1,44 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from pathlib import Path
 
+
+# Auto-locate folder of input file
+input_path = Path(r"Beräkningsuppgift-1/Uppsala_temperaturer_2008_2017-1.txt")
+base_dir = input_path.parent  # all outputs saved here
 
 # Load the temperature data from the text file
-data = np.loadtxt(r"Uppsala_temperaturer_2008_2017-1.txt")
+data = np.loadtxt(input_path)
 print(f"Data loaded successfully")
 
-# Extract the relevant columns into csv for easier handling with pandas
+# Extract the relevant columns correctly
 year = data[:, 0]
-day = data[:, 1]
-temperatures = data[:, 2]
-df = pd.DataFrame({'Year': year, "Day": day, 'Temperature': temperatures})
-export_filename = 'Uppsala_temperaturer_2008_2017.csv'
+month = data[:, 1]
+day = data[:, 2]
+temperatures = data[:, 3]
+
+df = pd.DataFrame({
+    'Year': year,
+    'Month': month,
+    'Day': day,
+    'Temperature': temperatures
+})
+export_filename = base_dir / 'Uppsala_temperaturer_2008_2017.csv'
 df.to_csv(export_filename, index=False)
 print(f"Data exported to {export_filename}")
+
+# Read the CSV file using pandas
+df = pd.read_csv(export_filename)
+
+# Build a real datetime axis from Year-Month-Day
+df['Date'] = pd.to_datetime(
+    dict(
+        year=df['Year'].astype(int),
+        month=df['Month'].astype(int),
+        day=df['Day'].astype(int)
+    ) # type: ignore
+) # type: ignore
 
 # Read the CSV file using pandas
 df = pd.read_csv(export_filename)
@@ -42,7 +66,7 @@ df['Radiator_Temperature'] = calc_T_rad_l
 print("Radiator temperatures calculated and added to DataFrame")
 
 #Question 1.a) Calculate the heatloss (värmelackage) in (kWh/dag)
-def calc_heatloss_kWh_day(T_out_l:list, T_in: float):
+def calc_heatloss_kWh_day(T_out_l:list, T_in: float = 21.0):
     heatloss_l = []
     for T_out in T_out_l:
         if T_out < T_in:
@@ -52,10 +76,10 @@ def calc_heatloss_kWh_day(T_out_l:list, T_in: float):
             heatloss_l.append(Qday_kWh)
         else:
             heatloss_l.append(0.0)
-    return heatloss_l
+    return [round(q, 2) for q in heatloss_l]
 
 
-df['Heatloss_kWh_day'] = calc_heatloss_kWh_day(df['Temperature'], 21)  # type: ignore
+df['Heatloss_kWh_day'] = calc_heatloss_kWh_day(df['Temperature'])  # type: ignore
 print("Heatloss calculated and added to DataFrame")
 
 #Question 1.b) Carnot COP for each day
@@ -68,7 +92,7 @@ def calc_COP(T_rad_l:list, T_cold_C: float = 10.0):
             COP_l.append(T_H/(T_H - T_C))
         else:
             COP_l.append(0.0)
-    return COP_l
+    return [round(cop, 2) for cop in COP_l]
 
 
 df['COP'] = calc_COP(df['Radiator_Temperature'])  # type: ignore
@@ -82,8 +106,7 @@ def calc_pump_electricity_kWh_day(heatloss_l:list, COP_l:list):
             el_l.append(Qloss/cop)
         else:
             el_l.append(0.0)
-    return el_l
-
+    return [round(i, 2) for i in el_l]
 
 df['Pump_Electricity_kWh_day'] = calc_pump_electricity_kWh_day(
     df['Heatloss_kWh_day'], df['COP']  # type: ignore
@@ -91,10 +114,10 @@ df['Pump_Electricity_kWh_day'] = calc_pump_electricity_kWh_day(
 print("Pump electricity calculated and added to DataFrame")
 
 # Save everything back to CSV
-df.to_csv('Uppsala_temperaturer_2008_2017.csv', index=False)
-print("Final data saved to CSV")
+df.to_csv(export_filename, index=False)
+print(f"Final data saved to CSV at {export_filename}")
 
-# ---- Plots (Question 1) ----
+# Plots (Question 1)
 # Make plots bigger + readable, and save them
 plot_kw = dict(figsize=(12, 5), linewidth=0.8)
 save_kw = dict(dpi=200, bbox_inches='tight')
@@ -107,7 +130,7 @@ plt.xlabel("Date")
 plt.ylabel("kWh/day")
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("q1a_heatloss.png", **save_kw)
+plt.savefig(base_dir / "q1a_heatloss.png", **save_kw)
 
 # 1b COP
 plt.figure(**plot_kw) # type: ignore
@@ -117,7 +140,7 @@ plt.xlabel("Date")
 plt.ylabel("COP")
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("q1b_COP.png", **save_kw)
+plt.savefig(base_dir / "q1b_COP.png", **save_kw)
 
 # 1c Electricity use
 plt.figure(**plot_kw) # type: ignore
@@ -127,7 +150,26 @@ plt.xlabel("Date")
 plt.ylabel("kWh/day")
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("q1c_pump_electricity.png", **save_kw)
+plt.savefig(base_dir / "q1c_pump_electricity.png", **save_kw)
 
 plt.show()
-print("Figures saved: q1a_heatloss.png, q1b_COP.png, q1c_pump_electricity.png")
+print("Figures saved:",
+      base_dir / "q1a_heatloss.png",
+      base_dir / "q1b_COP.png",
+      base_dir / "q1c_pump_electricity.png")
+
+# Question 2) Average electricity use per year (kWh/year) 
+df['Year'] = df['Year'].astype(int)
+yearly_el = df.groupby('Year')['Pump_Electricity_kWh_day'].sum()
+avg_el_per_year = round(yearly_el.mean(), 2)
+
+print("\nYearly electricity use (kWh/year):")
+print(yearly_el)
+
+print("\nAverage electricity use per year (kWh/year) for 2008 - 2017:")
+print(avg_el_per_year)
+
+# Optional: save yearly table next to your other outputs
+yearly_outfile = base_dir / "q2_yearly_electricity.csv"
+yearly_el.to_csv(yearly_outfile, header=['Electricity_kWh_year'])
+print(f"Yearly electricity summary saved to {yearly_outfile}")
