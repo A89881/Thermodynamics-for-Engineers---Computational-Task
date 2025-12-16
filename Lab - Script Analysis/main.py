@@ -31,8 +31,17 @@ def load_pascalike(path):
 
     return df
 
+# -----------------------------
+# SAVE CLEANED DATA
+# -----------------------------
 iso = load_pascalike(iso_path)
 adi = load_pascalike(adi_path)
+
+iso_clean_path = os.path.join(script_dir, "isoterm_cleaned.csv")
+adi_clean_path = os.path.join(script_dir, "adiabat_cleaned.csv")
+
+iso.to_csv(iso_clean_path, index=False)
+adi.to_csv(adi_clean_path, index=False)
 
 # -----------------------------
 # POLYTROPIC EXPONENT n
