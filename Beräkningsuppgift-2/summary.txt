@@ -1,0 +1,12 @@
+Beräkningsuppgift 2: Rankinecykel med öppen matarvattenförvärmning
+T_cond = 30.0 °C -> P_cond = 0.0425 bar
+P_boiler = 15.000 MPa, T_max = 600.0 °C
+
+Open FWH optimum:
+  P_extract* = 1.131804 MPa
+  eta_max    = 0.48443737
+  y*         = 0.24261004
+
+No FWH:
+  eta_noFWH  = 0.45022350
+  delta eta  = 0.03421386
